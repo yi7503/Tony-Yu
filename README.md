@@ -18,7 +18,7 @@ python generate_invoices.py
 
 This reads `data/invoice_data_100.csv` and writes 100 files to `output/` (gitignored), named like `Invoice-UJ6LCDHK-0001.pdf`.
 
-Two preview PDFs are in `examples/`: one without tax and one with a Tax row.
+Two preview PDFs are in `examples/`. All 100 USD invoices from `data/invoice_sample_data.csv` are in `examples/invoices-100.zip`.
 
 ```bash
 python -m unittest test_generate_invoices.py
