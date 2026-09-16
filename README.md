@@ -8,7 +8,7 @@ Batch-generate Stripe-style invoice PDFs from `data/invoice_data_100.csv`.
 pip install -r requirements.txt
 ```
 
-Inter fonts (`Regular` / `Medium` / `SemiBold`) live in `fonts/` and are embedded into every PDF.
+Inter fonts (`Regular` / `Medium` / `SemiBold`) live in `fonts/` and are embedded into every PDF. The top-right mark is `assets/logo.png` (override with `--logo`).
 
 ## Generate invoices
 
@@ -35,6 +35,7 @@ python generate_invoices.py --csv path/to/invoices.csv --out output --limit 5
 | `--csv` | `data/invoice_data_100.csv` | Source CSV |
 | `--out` | `output` | Output directory |
 | `--limit N` | all rows | Only the first N invoices |
+| `--logo` | `assets/logo.png` | Top-right logo image |
 
 ## CSV columns
 

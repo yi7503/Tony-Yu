@@ -13,6 +13,7 @@ from pathlib import Path
 
 from reportlab.lib.colors import Color, black, white
 from reportlab.lib.pagesizes import letter
+from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
@@ -27,6 +28,9 @@ QTY_RIGHT = 432.75
 UNIT_RIGHT = 506.25
 AMOUNT_RIGHT = 582.0
 TOTAL_LABEL_X = 306.0
+LOGO_X = 541.5
+LOGO_TOP = 30.0
+LOGO_SIZE = 40.5
 
 STRIPE_PURPLE = Color(0x63 / 255, 0x5B / 255, 0xFF / 255)
 RULE_GRAY = Color(0.9216, 0.9216, 0.9216)
@@ -106,6 +110,37 @@ def _find_font(filename: str) -> Path:
             return path
     raise FileNotFoundError(
         f"Missing font {filename}. Place Inter TTF files in { _script_dir() / 'fonts' }."
+    )
+
+
+def find_logo(explicit: Path | None = None) -> Path:
+    candidates = []
+    if explicit is not None:
+        candidates.append(explicit)
+    candidates.extend(
+        [
+            _script_dir() / "assets" / "logo.png",
+            _script_dir() / "logo.png",
+        ]
+    )
+    for path in candidates:
+        if path.is_file():
+            return path
+    raise FileNotFoundError(
+        f"Missing logo image. Place logo.png in {_script_dir() / 'assets'}."
+    )
+
+
+def draw_logo(c: canvas.Canvas, logo_path: Path) -> None:
+    c.drawImage(
+        ImageReader(str(logo_path)),
+        LOGO_X,
+        PAGE_H - LOGO_TOP - LOGO_SIZE,
+        width=LOGO_SIZE,
+        height=LOGO_SIZE,
+        mask="auto",
+        preserveAspectRatio=True,
+        anchor="sw",
     )
 
 
@@ -245,7 +280,7 @@ def fill_rect(c: canvas.Canvas, x: float, top: float, width: float, height: floa
     c.rect(x, PAGE_H - top - height, width, height, stroke=0, fill=1)
 
 
-def draw_invoice(c: canvas.Canvas, invoice: Invoice) -> None:
+def draw_invoice(c: canvas.Canvas, invoice: Invoice, logo_path: Path | None = None) -> None:
     symbol = invoice.currency
     due_money = format_money(symbol, invoice.amount_due)
     unit_money = format_money(symbol, invoice.unit_price)
@@ -255,6 +290,9 @@ def draw_invoice(c: canvas.Canvas, invoice: Invoice) -> None:
 
     fill_rect(c, 0, 0, PAGE_W, PAGE_H, white)
     fill_rect(c, 0, 0, PAGE_W, 4.0, black)
+
+    if logo_path is not None:
+        draw_logo(c, logo_path)
 
     draw_text(c, LEFT, 30.6, "Invoice", "Inter-SemiBold", 18)
 
@@ -361,8 +399,10 @@ def generate_invoices(
     csv_path: Path,
     output_dir: Path,
     limit: int | None = None,
+    logo_path: Path | None = None,
 ) -> list[Path]:
     register_fonts()
+    resolved_logo = find_logo(logo_path)
     invoices = load_invoices(csv_path)
     if limit is not None:
         invoices = invoices[:limit]
@@ -374,7 +414,7 @@ def generate_invoices(
     for invoice in invoices:
         path = output_dir / invoice_filename(invoice)
         c = canvas.Canvas(str(path), pagesize=letter)
-        draw_invoice(c, invoice)
+        draw_invoice(c, invoice, resolved_logo)
         c.showPage()
         c.save()
         written.append(path)
@@ -403,12 +443,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help="Generate only the first N invoices",
     )
+    parser.add_argument(
+        "--logo",
+        type=Path,
+        default=None,
+        help="Path to the top-right logo PNG (default: assets/logo.png)",
+    )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    paths = generate_invoices(args.csv, args.out, args.limit)
+    paths = generate_invoices(args.csv, args.out, args.limit, args.logo)
     print(f"Generated {len(paths)} invoice PDF(s) in {args.out.resolve()}")
     return 0
 

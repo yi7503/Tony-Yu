@@ -36,6 +36,7 @@ class InvoiceGeneratorTests(unittest.TestCase):
                 data = path.read_bytes()
                 self.assertTrue(data.startswith(b"%PDF"))
                 self.assertGreater(len(data), 2000)
+                self.assertIn(b"/Image", data)
             third = Path(tmp) / f"Invoice-{invoices[2].number}.pdf"
             self.assertTrue(third.exists())
             self.assertEqual(invoices[2].number, taxed.number)
