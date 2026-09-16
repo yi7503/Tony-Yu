@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import os
 import sys
 from dataclasses import dataclass
 from datetime import datetime
@@ -100,22 +101,52 @@ def _script_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
-def _find_font(filename: str) -> Path:
-    candidates = [
-        _script_dir() / "fonts" / filename,
-        Path("/usr/share/fonts/truetype/macos") / filename,
-        Path("/usr/share/fonts/truetype/inter") / filename,
-        Path.home() / ".fonts" / filename,
+def _font_dirs() -> list[Path]:
+    windir = os.environ.get("WINDIR") or os.environ.get("SystemRoot") or r"C:\Windows"
+    local = os.environ.get("LOCALAPPDATA")
+    dirs = [
+        _script_dir() / "fonts",
+        _script_dir(),
+        Path(windir) / "Fonts",
+        Path("/usr/share/fonts/truetype/macos"),
+        Path("/usr/share/fonts/truetype/inter"),
+        Path("/usr/share/fonts/truetype/dejavu"),
+        Path("/usr/share/fonts/truetype/liberation"),
+        Path.home() / ".fonts",
     ]
-    for path in candidates:
-        if path.is_file():
-            return path
-    raise FileNotFoundError(
-        f"Missing font {filename}. Place Inter TTF files in { _script_dir() / 'fonts' }."
-    )
+    if local:
+        dirs.insert(3, Path(local) / "Microsoft" / "Windows" / "Fonts")
+    return dirs
 
 
-def find_logo(explicit: Path | None = None) -> Path:
+def _find_first_font(filenames: list[str]) -> Path | None:
+    for directory in _font_dirs():
+        if not directory.is_dir():
+            continue
+        by_lower = {path.name.lower(): path for path in directory.iterdir() if path.is_file()}
+        for name in filenames:
+            hit = by_lower.get(name.lower())
+            if hit is not None:
+                return hit
+    return None
+
+
+_HELVETICA_FALLBACK = {
+    "Inter": "Helvetica",
+    "Inter-Medium": "Helvetica",
+    "Inter-SemiBold": "Helvetica-Bold",
+}
+
+
+def _resolved_font(font: str) -> str:
+    try:
+        pdfmetrics.getFont(font)
+        return font
+    except KeyError:
+        return _HELVETICA_FALLBACK.get(font, "Helvetica")
+
+
+def find_logo(explicit: Path | None = None) -> Path | None:
     candidates = []
     if explicit is not None:
         candidates.append(explicit)
@@ -123,14 +154,14 @@ def find_logo(explicit: Path | None = None) -> Path:
         [
             _script_dir() / "assets" / "logo.png",
             _script_dir() / "logo.png",
+            Path.cwd() / "logo.png",
+            Path.cwd() / "assets" / "logo.png",
         ]
     )
     for path in candidates:
         if path.is_file():
             return path
-    raise FileNotFoundError(
-        f"Missing logo image. Place logo.png in {_script_dir() / 'assets'}."
-    )
+    return None
 
 
 def draw_logo(c: canvas.Canvas, logo_path: Path) -> None:
@@ -147,21 +178,57 @@ def draw_logo(c: canvas.Canvas, logo_path: Path) -> None:
 
 
 def register_fonts() -> None:
-    mapping = {
-        "Inter": "Inter-Regular.ttf",
-        "Inter-Medium": "Inter-Medium.ttf",
-        "Inter-SemiBold": "Inter-SemiBold.ttf",
-    }
-    for name, filename in mapping.items():
-        pdfmetrics.registerFont(TTFont(name, str(_find_font(filename))))
+    regular = _find_first_font(
+        [
+            "Inter-Regular.ttf",
+            "segoeui.ttf",
+            "arial.ttf",
+            "calibri.ttf",
+            "DejaVuSans.ttf",
+            "LiberationSans-Regular.ttf",
+        ]
+    )
+    medium = _find_first_font(
+        [
+            "Inter-Medium.ttf",
+            "seguisb.ttf",
+            "segoeui.ttf",
+            "arial.ttf",
+            "calibri.ttf",
+            "DejaVuSans.ttf",
+            "LiberationSans-Regular.ttf",
+        ]
+    ) or regular
+    semibold = _find_first_font(
+        [
+            "Inter-SemiBold.ttf",
+            "seguisb.ttf",
+            "segoeuib.ttf",
+            "arialbd.ttf",
+            "calibrib.ttf",
+            "DejaVuSans-Bold.ttf",
+            "LiberationSans-Bold.ttf",
+        ]
+    ) or medium or regular
+    if regular is None:
+        print(
+            "No Inter/Arial/Segoe TTF found; falling back to Helvetica.",
+            file=sys.stderr,
+        )
+        return
+    pdfmetrics.registerFont(TTFont("Inter", str(regular)))
+    pdfmetrics.registerFont(TTFont("Inter-Medium", str(medium)))
+    pdfmetrics.registerFont(TTFont("Inter-SemiBold", str(semibold)))
+    if "Inter-Regular.ttf" not in regular.name:
+        print(f"Using system font {regular.name} (copy fonts/ next to the script for Inter).", file=sys.stderr)
 
 
 def text_width(text: str, font: str, size: float) -> float:
-    return pdfmetrics.stringWidth(text, font, size)
+    return pdfmetrics.stringWidth(text, _resolved_font(font), size)
 
 
 def ascent(font: str, size: float) -> float:
-    return pdfmetrics.getFont(font).face.ascent / 1000.0 * size
+    return pdfmetrics.getFont(_resolved_font(font)).face.ascent / 1000.0 * size
 
 
 def baseline_from_top(top: float, font: str, size: float) -> float:
@@ -290,7 +357,7 @@ def draw_text(
     elif align == "center":
         x = x - text_width(text, font, size) / 2.0
     c.setFillColor(color)
-    c.setFont(font, size)
+    c.setFont(_resolved_font(font), size)
     c.drawString(x, baseline_from_top(top, font, size), text)
 
 
@@ -422,6 +489,8 @@ def generate_invoices(
 ) -> list[Path]:
     register_fonts()
     resolved_logo = find_logo(logo_path)
+    if resolved_logo is None:
+        print("logo.png not found; generating invoices without a logo.", file=sys.stderr)
     invoices = load_invoices(csv_path)
     if limit is not None:
         invoices = invoices[:limit]

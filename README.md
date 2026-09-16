@@ -8,7 +8,7 @@ Batch-generate Stripe-style invoice PDFs from `data/invoice_data_100.csv`.
 pip install -r requirements.txt
 ```
 
-Inter fonts (`Regular` / `Medium` / `SemiBold`) live in `fonts/` and are embedded into every PDF. The top-right mark is `assets/logo.png` (override with `--logo`).
+Inter fonts in `fonts/` are used when present. On Windows, if that folder is missing, the script falls back to Segoe UI / Arial. `assets/logo.png` is optional (`--logo` to override).
 
 ## Generate invoices
 
