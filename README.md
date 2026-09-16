@@ -39,9 +39,10 @@ python generate_invoices.py --csv path/to/invoices.csv --out output --limit 5
 
 ## CSV columns
 
-The CSV is UTF-8 and uses these headers:
+The CSV is UTF-8. Two layouts are supported:
 
-`序号,发票号码,开票日期,到期日期,货币符号,卖方公司,卖方街道,卖方城市州邮编,卖方国家,卖方邮箱,买方姓名,买方街道,买方城市州邮编,买方国家,买方邮箱,明细名称,明细周期,数量,单价,金额,小计,税费,总计,应付,付款提示`
+1. Original: `货币符号`, `明细周期`, `单价`, `金额`, `小计`, `总计`, `应付`
+2. Dual-currency sample (`data/invoice_sample_data.csv`): `货币`, `服务周期`, `单价人民币`, `金额人民币`, `小计人民币`, `总计人民币`, `应付人民币`. Payable amounts render in `¥`.
 
 Dates such as `3-Feb-26` are rendered as `February 3, 2026`. Amounts use thousands separators and two decimal places. An empty `税费` column omits the Tax row.
 

@@ -63,6 +63,8 @@ CURRENCY_ALIASES = {
     "USD": "$",
     "CNY": "¥",
     "JPY": "¥",
+    "USD / CNY": "¥",
+    "USD/CNY": "¥",
 }
 
 
@@ -200,9 +202,22 @@ def normalize_currency(raw: str) -> str:
     token = (raw or "").strip()
     if token in CURRENCY_ALIASES:
         return CURRENCY_ALIASES[token]
+    collapsed = " ".join(token.replace("/", " / ").split())
+    if collapsed in CURRENCY_ALIASES:
+        return CURRENCY_ALIASES[collapsed]
     if token.upper() in CURRENCY_ALIASES:
         return CURRENCY_ALIASES[token.upper()]
+    if "CNY" in token.upper() or "人民币" in token:
+        return "¥"
     return token or "$"
+
+
+def cell(row: dict[str, str | None], *keys: str, default: str = "") -> str:
+    for key in keys:
+        value = row.get(key)
+        if value is not None and str(value).strip():
+            return str(value).strip()
+    return default
 
 
 def decode_csv_bytes(data: bytes) -> str:
@@ -225,32 +240,35 @@ def load_invoices(csv_path: Path) -> list[Invoice]:
     for row in reader:
         if not row or not any((value or "").strip() for value in row.values()):
             continue
+        number = cell(row, "发票号码")
+        if not number:
+            continue
         invoices.append(
             Invoice(
-                number=row["发票号码"].strip(),
-                issue_date=format_date(row["开票日期"]),
-                due_date=format_date(row["到期日期"]),
-                currency=normalize_currency(row["货币符号"]),
-                seller_name=row["卖方公司"].strip(),
-                seller_street=row["卖方街道"].strip(),
-                seller_city=row["卖方城市州邮编"].strip(),
-                seller_country=row["卖方国家"].strip(),
-                seller_email=row["卖方邮箱"].strip(),
-                buyer_name=row["买方姓名"].strip(),
-                buyer_street=row["买方街道"].strip(),
-                buyer_city=row["买方城市州邮编"].strip(),
-                buyer_country=row["买方国家"].strip(),
-                buyer_email=row["买方邮箱"].strip(),
-                item_name=row["明细名称"].strip(),
-                item_period=row["明细周期"].strip(),
-                quantity=str(row["数量"]).strip(),
-                unit_price=parse_decimal(row["单价"]),
-                amount=parse_decimal(row["金额"]),
-                subtotal=parse_decimal(row["小计"]),
-                tax=parse_optional_decimal(row["税费"]),
-                total=parse_decimal(row["总计"]),
-                amount_due=parse_decimal(row["应付"]),
-                pay_label=(row.get("付款提示") or "Pay online").strip() or "Pay online",
+                number=number,
+                issue_date=format_date(cell(row, "开票日期")),
+                due_date=format_date(cell(row, "到期日期")),
+                currency=normalize_currency(cell(row, "货币符号", "货币", default="¥")),
+                seller_name=cell(row, "卖方公司"),
+                seller_street=cell(row, "卖方街道"),
+                seller_city=cell(row, "卖方城市州邮编"),
+                seller_country=cell(row, "卖方国家"),
+                seller_email=cell(row, "卖方邮箱"),
+                buyer_name=cell(row, "买方姓名"),
+                buyer_street=cell(row, "买方街道"),
+                buyer_city=cell(row, "买方城市州邮编"),
+                buyer_country=cell(row, "买方国家"),
+                buyer_email=cell(row, "买方邮箱"),
+                item_name=cell(row, "明细名称"),
+                item_period=cell(row, "明细周期", "服务周期"),
+                quantity=cell(row, "数量"),
+                unit_price=parse_decimal(cell(row, "单价人民币", "单价")),
+                amount=parse_decimal(cell(row, "金额人民币", "金额")),
+                subtotal=parse_decimal(cell(row, "小计人民币", "小计")),
+                tax=parse_optional_decimal(cell(row, "税费")),
+                total=parse_decimal(cell(row, "总计人民币", "总计")),
+                amount_due=parse_decimal(cell(row, "应付人民币", "应付")),
+                pay_label=cell(row, "付款提示", default="Pay online") or "Pay online",
             )
         )
     return invoices

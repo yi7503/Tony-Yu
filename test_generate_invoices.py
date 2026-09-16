@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+from decimal import Decimal
 from pathlib import Path
 
 from generate_invoices import generate_invoices, load_invoices, normalize_currency
@@ -12,6 +13,7 @@ from generate_invoices import generate_invoices, load_invoices, normalize_curren
 
 ROOT = Path(__file__).resolve().parent
 CSV_PATH = ROOT / "data" / "invoice_data_100.csv"
+SAMPLE_CSV_PATH = ROOT / "data" / "invoice_sample_data.csv"
 
 
 class InvoiceGeneratorTests(unittest.TestCase):
@@ -40,6 +42,20 @@ class InvoiceGeneratorTests(unittest.TestCase):
             third = Path(tmp) / f"Invoice-{invoices[2].number}.pdf"
             self.assertTrue(third.exists())
             self.assertEqual(invoices[2].number, taxed.number)
+
+
+    def test_dual_currency_sample_csv(self) -> None:
+        invoices = load_invoices(SAMPLE_CSV_PATH)
+        self.assertEqual(len(invoices), 100)
+        first = invoices[0]
+        self.assertEqual(first.number, "JWNN4UKF-0001")
+        self.assertEqual(first.currency, "¥")
+        self.assertEqual(first.quantity, "9")
+        self.assertEqual(first.amount_due, Decimal("14040"))
+        with tempfile.TemporaryDirectory() as tmp:
+            written = generate_invoices(SAMPLE_CSV_PATH, Path(tmp), limit=1)
+            self.assertEqual(written[0].name, "Invoice-JWNN4UKF-0001.pdf")
+            self.assertTrue(written[0].read_bytes().startswith(b"%PDF"))
 
 
 if __name__ == "__main__":
