@@ -63,8 +63,8 @@ CURRENCY_ALIASES = {
     "USD": "$",
     "CNY": "¥",
     "JPY": "¥",
-    "USD / CNY": "¥",
-    "USD/CNY": "¥",
+    "USD / CNY": "$",
+    "USD/CNY": "$",
 }
 
 
@@ -243,12 +243,13 @@ def load_invoices(csv_path: Path) -> list[Invoice]:
         number = cell(row, "发票号码")
         if not number:
             continue
+        uses_usd = bool(cell(row, "单价USD", "金额USD"))
         invoices.append(
             Invoice(
                 number=number,
                 issue_date=format_date(cell(row, "开票日期")),
                 due_date=format_date(cell(row, "到期日期")),
-                currency=normalize_currency(cell(row, "货币符号", "货币", default="¥")),
+                currency="$" if uses_usd else normalize_currency(cell(row, "货币符号", "货币", default="$")),
                 seller_name=cell(row, "卖方公司"),
                 seller_street=cell(row, "卖方街道"),
                 seller_city=cell(row, "卖方城市州邮编"),
@@ -262,12 +263,12 @@ def load_invoices(csv_path: Path) -> list[Invoice]:
                 item_name=cell(row, "明细名称"),
                 item_period=cell(row, "明细周期", "服务周期"),
                 quantity=cell(row, "数量"),
-                unit_price=parse_decimal(cell(row, "单价人民币", "单价")),
-                amount=parse_decimal(cell(row, "金额人民币", "金额")),
-                subtotal=parse_decimal(cell(row, "小计人民币", "小计")),
+                unit_price=parse_decimal(cell(row, "单价USD", "单价", "单价人民币")),
+                amount=parse_decimal(cell(row, "金额USD", "金额", "金额人民币")),
+                subtotal=parse_decimal(cell(row, "小计", "金额USD", "小计人民币")),
                 tax=parse_optional_decimal(cell(row, "税费")),
-                total=parse_decimal(cell(row, "总计人民币", "总计")),
-                amount_due=parse_decimal(cell(row, "应付人民币", "应付")),
+                total=parse_decimal(cell(row, "总计", "金额USD", "总计人民币")),
+                amount_due=parse_decimal(cell(row, "应付", "金额USD", "应付人民币")),
                 pay_label=cell(row, "付款提示", default="Pay online") or "Pay online",
             )
         )

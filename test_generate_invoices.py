@@ -27,6 +27,7 @@ class InvoiceGeneratorTests(unittest.TestCase):
         self.assertEqual(normalize_currency("?"), "₱")
         self.assertEqual(normalize_currency("￥"), "¥")
         self.assertEqual(normalize_currency("EUR"), "€")
+        self.assertEqual(normalize_currency("USD / CNY"), "$")
 
     def test_generate_limit_and_tax_row(self) -> None:
         invoices = load_invoices(CSV_PATH)
@@ -49,9 +50,10 @@ class InvoiceGeneratorTests(unittest.TestCase):
         self.assertEqual(len(invoices), 100)
         first = invoices[0]
         self.assertEqual(first.number, "JWNN4UKF-0001")
-        self.assertEqual(first.currency, "¥")
+        self.assertEqual(first.currency, "$")
         self.assertEqual(first.quantity, "9")
-        self.assertEqual(first.amount_due, Decimal("14040"))
+        self.assertEqual(first.unit_price, Decimal("200"))
+        self.assertEqual(first.amount_due, Decimal("1800"))
         with tempfile.TemporaryDirectory() as tmp:
             written = generate_invoices(SAMPLE_CSV_PATH, Path(tmp), limit=1)
             self.assertEqual(written[0].name, "Invoice-JWNN4UKF-0001.pdf")
